@@ -8,7 +8,7 @@ import BetHistory from "@/components/bet-history";
 import { getProfile, UserProfileResponse } from "@/app/lib/api";
 
 // Backend URL
-const BACKEND_URL = "http://localhost:8099";
+const BACKEND_URL = "https://aviator-app-latest.onrender.com";
 
 export default function AviatorGame() {
   const router = useRouter();
