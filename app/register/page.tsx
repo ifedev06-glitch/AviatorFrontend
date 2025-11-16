@@ -1,49 +1,53 @@
 "use client";
 
 import { useState } from "react";
-import { FaUserAlt, FaLock, FaEye, FaEyeSlash } from "react-icons/fa";
-import { loginUser } from "@/app/lib/api";
-import { saveToken } from "@/app/lib/auth";
+import { FaUserAlt, FaPhoneAlt, FaLock, FaEye, FaEyeSlash } from "react-icons/fa";
+import { signupUser, SignupRequest, SignupResponse } from "@/app/lib/api";
 import { useRouter } from "next/navigation";
 
-export default function LoginPage() {
-  const router = useRouter();
+export default function SignupPage() {
+  const [fullname, setFullname] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  const handleLogin = async () => {
-    if (!phone.trim() || !password.trim()) return;
+  const router = useRouter();
+
+  const handleSignup = async () => {
+    if (!fullname.trim() || !phone.trim() || !password.trim()) return;
 
     setIsLoading(true);
     setFeedback(null);
 
     try {
-      const response = await loginUser({
+      const payload: SignupRequest = {
+        name: fullname,
         phoneNumber: phone,
-        password: password,
-      });
+        password,
+      };
 
-      saveToken(response.token);
+      const data: SignupResponse = await signupUser(payload);
 
-      setFeedback("Login successful!");
+      // store token
+      localStorage.setItem("authToken", data.token);
+
+      setFeedback(data.message);
 
       setTimeout(() => {
-        router.push("/dashboard");
+        router.push("/");
       }, 1200);
-    } catch (err: any) {
+    } catch (error: any) {
       const message =
-        err.response?.data?.message ||
-        "Invalid credentials. Please try again.";
+        error.response?.data?.message || "Signup failed. Please try again.";
       setFeedback(message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const isFormValid = phone && password;
+  const isFormValid = fullname && phone && password;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-black to-slate-950 flex items-center justify-center p-4">
@@ -55,15 +59,30 @@ export default function LoginPage() {
             CashGame
           </h1>
           <p className="text-cyan-300/70 text-sm mt-2">
-            Login to your account
+            Create your account and start playing
           </p>
         </div>
 
-        {/* Phone Number */}
+        {/* Full Name */}
+        <div className="space-y-1">
+          <label className="text-white text-sm font-semibold">Full Name</label>
+          <div className="relative">
+            <FaUserAlt className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-400/60" />
+            <input
+              type="text"
+              placeholder="e.g. Chukwu Okafor"
+              value={fullname}
+              onChange={(e) => setFullname(e.target.value)}
+              className="w-full p-3 pl-10 rounded-lg bg-slate-900 border border-cyan-500/20 text-white placeholder:text-slate-400 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-400 outline-none"
+            />
+          </div>
+        </div>
+
+        {/* Phone */}
         <div className="space-y-1">
           <label className="text-white text-sm font-semibold">Phone Number</label>
           <div className="relative">
-            <FaUserAlt className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-400/60" />
+            <FaPhoneAlt className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-400/60" />
             <input
               type="text"
               placeholder="e.g. 08012345678"
@@ -104,9 +123,9 @@ export default function LoginPage() {
           </p>
         )}
 
-        {/* Login Button */}
+        {/* Signup Button */}
         <button
-          onClick={handleLogin}
+          onClick={handleSignup}
           disabled={!isFormValid || isLoading}
           className={`w-full py-3 rounded-lg font-semibold transition ${
             isFormValid
@@ -114,17 +133,17 @@ export default function LoginPage() {
               : "bg-slate-700 cursor-not-allowed"
           } text-white`}
         >
-          {isLoading ? "Logging in..." : "Login"}
+          {isLoading ? "Creating Account..." : "Sign Up"}
         </button>
 
         {/* Footer */}
         <p className="text-slate-400 text-xs text-center mt-2">
-          Don’t have an account?{" "}
+          Already have an account?{" "}
           <span
             className="text-cyan-400 font-semibold cursor-pointer"
-            onClick={() => router.push("/register")}
+            onClick={() => router.push("/")}
           >
-            Sign Up
+            Login
           </span>
         </p>
       </div>
