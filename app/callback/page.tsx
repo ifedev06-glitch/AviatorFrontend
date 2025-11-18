@@ -48,8 +48,8 @@ function DepositCallbackContent() {
         setMessage(res || "Payment verified successfully!");
         setIsSuccess(true);
       } catch (err) {
-        console.error("Deposit verification failed:", err);
-        setMessage("Payment verification failed.");
+        console.error("Verifying Payment", err);
+        setMessage("Verifying Payment.");
         setIsSuccess(false);
       } finally {
         setLoading(false);
