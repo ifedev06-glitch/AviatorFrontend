@@ -3,12 +3,12 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { getProfile, verifyDeposit, UserProfileResponse } from "@/app/lib/api";
-import { FaWallet, FaArrowDown, FaArrowUp, FaSignOutAlt, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
+import { FaWallet, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
 
-export default function DepositCallbackPage() {
+function DepositCallbackContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -41,8 +41,8 @@ export default function DepositCallbackPage() {
         // Verify deposit
         const res = await verifyDeposit({
           reference,
-          userId: profileData.id, // ✅ guaranteed number now
-          amount: 0, // optionally you can pass amount if needed
+          userId: profileData.id,
+          amount: 0,
         });
 
         setMessage(res || "Payment verified successfully!");
@@ -93,5 +93,23 @@ export default function DepositCallbackPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function DepositCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-black to-slate-950 flex items-center justify-center p-4">
+        <div className="w-full max-w-2xl bg-black/40 border border-cyan-500/30 backdrop-blur-xl p-6 rounded-2xl shadow-xl shadow-cyan-500/20 text-center">
+          <div className="flex justify-center mb-4">
+            <FaWallet className="text-cyan-400 text-5xl animate-pulse" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">Loading...</h2>
+          <p className="text-cyan-300/70">Please wait</p>
+        </div>
+      </div>
+    }>
+      <DepositCallbackContent />
+    </Suspense>
   );
 }

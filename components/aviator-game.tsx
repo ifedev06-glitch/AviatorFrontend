@@ -2,13 +2,15 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import SockJS from "sockjs-client";
+import { Client, Stomp } from "@stomp/stompjs";
 import BettingPanel from "@/components/betting-panel";
 import GameDisplay from "@/components/game-display";
 import BetHistory from "@/components/bet-history";
-import { getProfile, UserProfileResponse } from "@/app/lib/api";
+import { getProfile, UserProfileResponse, placeBet as placeBetApi, cashout as cashoutApi } from "@/app/lib/api";
 
 // Backend URL
-const BACKEND_URL = "https://aviator-app-latest.onrender.com";
+const WS_URL = "https://aviator-app-latest.onrender.com/ws";
 
 export default function AviatorGame() {
   const router = useRouter();
@@ -23,12 +25,11 @@ export default function AviatorGame() {
   const [isLoading, setIsLoading] = useState(false);
   const [backendError, setBackendError] = useState(false);
 
-  const gameLoopRef = useRef<NodeJS.Timeout | null>(null);
-  const restartTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [waitingNextRound, setWaitingNextRound] = useState(false);
+  const [nextRoundCountdown, setNextRoundCountdown] = useState(10);
+
   const currentBetRef = useRef<number>(0);
-  const gameStartTimeRef = useRef<number>(0);
-  const crashPointRef = useRef<number>(0);
-  const roundDurationRef = useRef<number>(10000); // default 10s
+  const stompClientRef = useRef<Client | null>(null);
 
   // ------------------ Load User Profile ------------------
   const loadUserProfile = async () => {
@@ -49,55 +50,42 @@ export default function AviatorGame() {
     loadUserProfile();
   }, []);
 
-  // Reset hasPlacedBet when game crashes
+  // ------------------ WebSocket Setup ------------------
   useEffect(() => {
-    if (gameState === "crashed") setHasPlacedBet(false);
-  }, [gameState]);
+    const socket = new SockJS(WS_URL);
+    const stompClient = Stomp.over(socket);
+    stompClientRef.current = stompClient;
 
-  // ------------------ Fetch Current Global Round ------------------
-  const fetchCurrentRound = async () => {
-    try {
-      setIsLoading(true);
-      const response = await fetch(`${BACKEND_URL}/api/aviator/current`);
-      if (!response.ok) throw new Error("Failed to fetch current round");
+    stompClient.connect({}, () => {
+      console.log("✅ Connected to WebSocket");
 
-      const data = await response.json();
-      crashPointRef.current = Number(data.crashPoint);
-      gameStartTimeRef.current = new Date(data.startTime).getTime();
-      roundDurationRef.current = data.duration || 10000;
+      // Listen for multiplier updates
+      stompClient.subscribe("/topic/multiplier", (message) => {
+        const data = JSON.parse(message.body);
+        setMultiplier(Number(data.multiplier));
+        setGameState("playing");
+      });
 
-    } catch (err) {
-      console.error(err);
-      setBackendError(true);
-      alert("❌ Cannot fetch current round. Please refresh.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      // Listen for crashes
+      stompClient.subscribe("/topic/crash", (message) => {
+        const data = JSON.parse(message.body);
+        handleCrash(Number(data.crashPoint));
+      });
 
-  // ------------------ Game Loop ------------------
-  const startGameLoop = async () => {
-    if (backendError) return;
-    if (gameLoopRef.current) clearInterval(gameLoopRef.current);
+      // Listen for new rounds
+      stompClient.subscribe("/topic/round", (message) => {
+        const data = JSON.parse(message.body);
+        if (data.phase === "BETTING") {
+          setGameState("idle");
+          setMultiplier(1.0);
+        }
+      });
+    });
 
-    await fetchCurrentRound();
-
-    setGameState("playing");
-    setMultiplier(1.0);
-
-    gameLoopRef.current = setInterval(() => {
-      const elapsed = Date.now() - gameStartTimeRef.current;
-      const progress = Math.min(elapsed / roundDurationRef.current, 1);
-      const currentMultiplier = 1.0 + (crashPointRef.current - 1.0) * progress;
-
-      setMultiplier(Number(currentMultiplier.toFixed(2)));
-
-      if (progress >= 1) {
-        handleCrash(crashPointRef.current);
-        if (gameLoopRef.current) clearInterval(gameLoopRef.current);
-      }
-    }, 100);
-  };
+    return () => {
+      stompClient.disconnect(() => console.log("❌ WebSocket disconnected"));
+    };
+  }, []);
 
   // ------------------ Handle Crash ------------------
   const handleCrash = (finalMultiplier: number) => {
@@ -111,21 +99,26 @@ export default function AviatorGame() {
       currentBetRef.current = 0;
     }
 
-    setTimeToRestart(5);
-    let countdown = 5;
-    restartTimerRef.current = setInterval(() => {
-      countdown -= 1;
-      setTimeToRestart(countdown);
+    // Start waiting for next round
+    setWaitingNextRound(true);
+    setNextRoundCountdown(10);
+    let countdown = 10;
 
-      if (countdown === 0) {
-        if (restartTimerRef.current) clearInterval(restartTimerRef.current);
-        startGameLoop();
+    const interval = setInterval(() => {
+      countdown -= 1;
+      setNextRoundCountdown(countdown);
+
+      if (countdown <= 0) {
+        clearInterval(interval);
+        setWaitingNextRound(false);
+        setGameState("idle");
+        setMultiplier(1.0);
       }
     }, 1000);
   };
 
   // ------------------ Betting ------------------
-  const placeBet = (amount: number) => {
+  const placeBet = async (amount: number) => {
     if (balance < amount) {
       alert("Insufficient balance!");
       return;
@@ -135,35 +128,60 @@ export default function AviatorGame() {
       return;
     }
 
+    // Optimistic UI update
     setBalance(prev => prev - amount);
-    setBetAmount(amount);
     setHasPlacedBet(true);
     currentBetRef.current = amount;
+    setBetAmount(amount);
+
+    try {
+      const response = await placeBetApi({ amount }); // backend call
+      // Correct balance if backend returns a different value
+      setBalance(response.remainingBalance);
+    } catch (err: any) {
+      console.error("Failed to place bet:", err);
+      alert(err.response?.data?.message || "❌ Failed to place bet. Try again.");
+      // Rollback
+      setBalance(prev => prev + amount);
+      setHasPlacedBet(false);
+      currentBetRef.current = 0;
+    }
   };
 
-  const cashOut = () => {
+  const cashOut = async () => {
     if (!hasPlacedBet || gameState !== "playing") return;
 
-    const winnings = currentBetRef.current * multiplier;
-    setBalance(prev => prev + winnings);
+    // Optimistic UI update
+    const cashoutMultiplier = multiplier;
+    const cashoutAmount = currentBetRef.current * cashoutMultiplier;
+
+    setBalance(prev => prev + cashoutAmount);
     setBets(prev => [
       ...prev,
-      { amount: currentBetRef.current, multiplier: multiplier, result: "won" },
+      { amount: currentBetRef.current, multiplier: cashoutMultiplier, result: "won" },
     ]);
-
     setHasPlacedBet(false);
     currentBetRef.current = 0;
+
+    try {
+      const response = await cashoutApi(); // backend call
+      // Correct balance if backend returns a different value
+      setBalance(response.newBalance);
+    } catch (err: any) {
+      console.error("Cashout failed:", err);
+      alert(err.response?.data?.message || "❌ Failed to cash out. Try again.");
+      // Rollback UI
+      setBalance(prev => prev - cashoutAmount);
+      setBets(prev => prev.slice(0, -1));
+      setHasPlacedBet(true);
+      currentBetRef.current = cashoutAmount / cashoutMultiplier;
+    }
   };
 
-  // ------------------ Initial Game Start ------------------
+  // Reset hasPlacedBet when game crashes
   useEffect(() => {
-    const timer = setTimeout(() => startGameLoop(), 2000);
-    return () => {
-      clearTimeout(timer);
-      if (gameLoopRef.current) clearInterval(gameLoopRef.current);
-      if (restartTimerRef.current) clearInterval(restartTimerRef.current);
-    };
-  }, []);
+    if (gameState === "crashed") setHasPlacedBet(false);
+  }, [gameState]);
 
   // ------------------ Render ------------------
   return (
@@ -188,8 +206,22 @@ export default function AviatorGame() {
         </div>
 
         <div className="space-y-4">
-          <div className="w-full rounded-2xl overflow-hidden border border-cyan-500/30 shadow-lg shadow-cyan-500/20" style={{ height: "220px" }}>
+          <div className="relative w-full rounded-2xl overflow-hidden border border-cyan-500/30 shadow-lg shadow-cyan-500/20" style={{ height: "220px" }}>
             <GameDisplay gameState={gameState} multiplier={multiplier} timeToRestart={timeToRestart} />
+
+            {/* Waiting overlay only inside game box */}
+            {waitingNextRound && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black bg-opacity-80 text-white p-4">
+                <p className="text-lg font-bold mb-2">Waiting for next round...</p>
+                <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-cyan-400 transition-all duration-1000"
+                    style={{ width: `${((10 - nextRoundCountdown) / 10) * 100}%` }}
+                  ></div>
+                </div>
+                <p className="mt-1 text-sm">{nextRoundCountdown}s</p>
+              </div>
+            )}
           </div>
 
           <BettingPanel

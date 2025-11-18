@@ -245,7 +245,7 @@ export interface WithdrawalResponse {
 // ---------- Bank Account & Withdrawal Functions ----------
 export async function addBankAccount(request: BankAccountRequest): Promise<BankAccountResponse> {
   const response = await apiClient.post<BankAccountResponse>(
-    "/api/v1/payments/bank-accounts",
+    "/bank-accounts",
     request
   );
   return response.data;
@@ -253,14 +253,14 @@ export async function addBankAccount(request: BankAccountRequest): Promise<BankA
 
 export async function getUserBankAccounts(): Promise<BankAccountResponse[]> {
   const response = await apiClient.get<BankAccountResponse[]>(
-    "/api/v1/payments/bank-accounts"
+    "/bank-accounts"
   );
   return response.data;
 }
 
 export async function requestWithdrawal(request: WithdrawRequest): Promise<WithdrawalResponse> {
   const response = await apiClient.post<WithdrawalResponse>(
-    "/api/v1/payments/withdraw",
+    "/withdraw",
     request
   );
   return response.data;
@@ -268,7 +268,7 @@ export async function requestWithdrawal(request: WithdrawRequest): Promise<Withd
 
 // ---------- Withdrawal History ----------
 export async function getUserWithdrawals(): Promise<WithdrawalResponse[]> {
-  const response = await apiClient.get<WithdrawalResponse[]>("/api/v1/payments/history");
+  const response = await apiClient.get<WithdrawalResponse[]>("/history");
   return response.data;
 }
 {}

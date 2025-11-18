@@ -16,10 +16,12 @@ import {
   addBankAccount,
   getUserBankAccounts,
   requestWithdrawal,
+  getUserWithdrawals,
   UserProfileResponse,
   BankAccountResponse,
   BankAccountRequest,
   WithdrawRequest,
+  WithdrawalResponse,
 } from "@/app/lib/api";
 
 export default function WithdrawalPage() {
@@ -32,6 +34,9 @@ export default function WithdrawalPage() {
   const [withdrawAmount, setWithdrawAmount] = useState<number | "">("");
   const [selectedBankId, setSelectedBankId] = useState<number | "">("");
   const [isWithdrawing, setIsWithdrawing] = useState(false);
+
+  const [withdrawals, setWithdrawals] = useState<WithdrawalResponse[]>([]);
+  const [isWithdrawalsLoading, setIsWithdrawalsLoading] = useState(true);
 
   // Add bank account modal
   const [isAddBankModalOpen, setIsAddBankModalOpen] = useState(false);
@@ -54,13 +59,18 @@ export default function WithdrawalPage() {
       try {
         const profileData = await getProfile();
         setProfile(profileData);
+
         const accountsData = await getUserBankAccounts();
         setBankAccounts(accountsData);
+
+        const withdrawalsData = await getUserWithdrawals();
+        setWithdrawals(withdrawalsData);
       } catch (err) {
         console.error("Error loading withdrawal page:", err);
       } finally {
         setIsProfileLoading(false);
         setIsBankLoading(false);
+        setIsWithdrawalsLoading(false);
       }
     }
     fetchData();
@@ -110,9 +120,7 @@ export default function WithdrawalPage() {
       const res = await requestWithdrawal(req);
 
       setModalType("success");
-      setModalMessage(
-        `Withdrawal request submitted! Reference: #${res.id}.`
-      );
+      setModalMessage(`Withdrawal request submitted! Reference: #${res.id}.`);
       setIsModalOpen(true);
 
       // Reset form
@@ -122,12 +130,15 @@ export default function WithdrawalPage() {
       // Refresh profile
       const profileData = await getProfile();
       setProfile(profileData);
+
+      // Refresh withdrawals
+      const withdrawalsData = await getUserWithdrawals();
+      setWithdrawals(withdrawalsData);
     } catch (err: any) {
       console.error("Withdrawal failed:", err);
       setModalType("error");
       setModalMessage(
-        err.response?.data?.message ||
-          "Failed to request withdrawal. Please try again."
+        err.response?.data?.message || "Failed to request withdrawal. Please try again."
       );
       setIsModalOpen(true);
     } finally {
@@ -264,6 +275,45 @@ export default function WithdrawalPage() {
           >
             {isWithdrawing ? "Processing..." : "Request Withdrawal"}
           </button>
+        </div>
+
+        {/* Withdrawal History */}
+        <div className="mt-6">
+          <h2 className="text-xl font-bold text-white mb-3">Withdrawal History</h2>
+          {isWithdrawalsLoading ? (
+            <p className="text-slate-400">Loading withdrawals...</p>
+          ) : withdrawals.length === 0 ? (
+            <p className="text-slate-400">No withdrawals yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {withdrawals.map((w) => (
+                <div
+                  key={w.id}
+                  className="flex justify-between items-center p-3 bg-slate-800 border border-slate-600 rounded-lg"
+                >
+                  <div>
+                    <p className="text-white font-semibold">
+                      {w.bankName} - {w.accountNumber}
+                    </p>
+                    <p className="text-slate-400 text-sm">
+                      Amount: ₦{w.amount.toLocaleString()}
+                    </p>
+                  </div>
+                  <span
+                    className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                      w.status === "PAID"
+                        ? "bg-green-500 text-white"
+                        : w.status === "PENDING"
+                        ? "bg-yellow-500 text-white"
+                        : "bg-red-500 text-white"
+                    }`}
+                  >
+                    {w.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

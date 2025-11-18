@@ -2,7 +2,13 @@
 
 import { useEffect, useState, useRef } from "react";
 import { FaWallet, FaArrowDown, FaArrowUp, FaGamepad, FaHistory, FaSignOutAlt } from "react-icons/fa";
-import { getProfile, UserProfileResponse, initiateDeposit } from "@/app/lib/api";
+import {
+  getProfile,
+  getUserWithdrawals,
+  UserProfileResponse,
+  WithdrawalResponse,
+  initiateDeposit,
+} from "@/app/lib/api";
 import { useRouter } from "next/navigation";
 import { removeToken } from "@/app/lib/auth";
 import { Dialog, Transition } from "@headlessui/react";
@@ -14,8 +20,11 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [withdrawals, setWithdrawals] = useState<WithdrawalResponse[]>([]);
+  const [withdrawalsLoading, setWithdrawalsLoading] = useState(true);
+
   const [isDepositOpen, setDepositOpen] = useState(false);
-  const [depositAmount, setDepositAmount] = useState<string>(""); // <- string now
+  const [depositAmount, setDepositAmount] = useState<string>(""); 
   const [depositLoading, setDepositLoading] = useState(false);
   const depositInputRef = useRef<HTMLInputElement>(null);
 
@@ -25,6 +34,8 @@ export default function DashboardPage() {
         setLoading(true);
         const data = await getProfile();
         setProfile(data);
+        const withdrawalsData = await getUserWithdrawals();
+        setWithdrawals(withdrawalsData);
       } catch (err: any) {
         console.error("Failed to fetch profile:", err);
         setError("Failed to load profile");
@@ -33,6 +44,7 @@ export default function DashboardPage() {
         }
       } finally {
         setLoading(false);
+        setWithdrawalsLoading(false);
       }
     };
     fetchProfile();
@@ -56,11 +68,10 @@ export default function DashboardPage() {
     } finally {
       setDepositLoading(false);
       setDepositOpen(false);
-      setDepositAmount(""); // reset input after modal closes
+      setDepositAmount("");
     }
   };
 
-  // Auto-focus the input when modal opens
   useEffect(() => {
     if (isDepositOpen) {
       setTimeout(() => depositInputRef.current?.focus(), 100);
@@ -132,7 +143,10 @@ export default function DashboardPage() {
               <FaArrowDown /> Deposit
             </button>
 
-            <button className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-red-500 to-red-400 text-white font-semibold py-3 rounded-xl shadow-md shadow-red-500/30 hover:opacity-90 transition">
+            <button
+              onClick={() => router.push("/withdrawal")}
+              className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-red-500 to-red-400 text-white font-semibold py-3 rounded-xl shadow-md shadow-red-500/30 hover:opacity-90 transition"
+            >
               <FaArrowUp /> Withdraw
             </button>
           </div>
@@ -174,7 +188,7 @@ export default function DashboardPage() {
 
                     <div className="mt-2">
                       <input
-                        ref={depositInputRef} // auto-focus
+                        ref={depositInputRef}
                         type="number"
                         min={0}
                         value={depositAmount}
@@ -210,7 +224,7 @@ export default function DashboardPage() {
 
         {/* Go to Game Card */}
         <div className="bg-black/40 border border-cyan-500/30 backdrop-blur-xl rounded-2xl p-6 shadow-xl shadow-cyan-500/20">
-          <button 
+          <button
             onClick={() => router.push("/game")}
             className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-cyan-400 to-red-500 text-white py-4 rounded-xl font-bold text-lg shadow-md shadow-cyan-500/30 hover:opacity-90 transition"
           >
@@ -226,9 +240,40 @@ export default function DashboardPage() {
             <h2 className="text-white text-xl font-bold">Withdrawal History</h2>
           </div>
 
-          <p className="text-slate-400 text-center py-6 text-sm">
-            No withdrawal records yet.
-          </p>
+          {withdrawalsLoading ? (
+            <p className="text-slate-400 text-center py-6 text-sm">Loading withdrawals...</p>
+          ) : withdrawals.length === 0 ? (
+            <p className="text-slate-400 text-center py-6 text-sm">No withdrawal records yet.</p>
+          ) : (
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {withdrawals.map((w) => (
+                <div
+                  key={w.id}
+                  className="flex justify-between items-center p-3 bg-slate-800 border border-slate-600 rounded-lg"
+                >
+                  <div>
+                    <p className="text-white font-semibold">
+                      {w.bankName} - {w.accountNumber}
+                    </p>
+                    <p className="text-slate-400 text-sm">
+                      Amount: ₦{w.amount.toLocaleString()}
+                    </p>
+                  </div>
+                  <span
+                    className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                      w.status === "PAID"
+                        ? "bg-green-500 text-white"
+                        : w.status === "PENDING"
+                        ? "bg-yellow-500 text-white"
+                        : "bg-red-500 text-white"
+                    }`}
+                  >
+                    {w.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
       </div>
