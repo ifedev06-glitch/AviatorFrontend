@@ -11,13 +11,19 @@ interface BetHistoryProps {
 }
 
 export default function BetHistory({ bets }: BetHistoryProps) {
-  const sortedBets = [...bets].reverse()
+  // Format amount in Naira
+  const formatNaira = (amount: number) => {
+    return `₦${amount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  // Show only latest 4 bets (they're already in reverse order from parent)
+  const displayBets = bets.slice(0, 4);
 
   return (
     <div className="glass rounded-2xl p-6 border-cyan-500/30 shadow-2xl">
-      <h2 className="text-3xl font-black mb-6 text-cyan-400 text-glow">📊 BET HISTORY</h2>
+      <h2 className="text-3xl font-black mb-6 text-cyan-400 text-glow">📊 BET HISTORY (Latest 4)</h2>
 
-      {bets.length === 0 ? (
+      {displayBets.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-gray-400 text-lg font-medium">No bets yet. Place your first bet to get started!</p>
         </div>
@@ -34,17 +40,17 @@ export default function BetHistory({ bets }: BetHistoryProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-cyan-500/10">
-              {sortedBets.map((bet, idx) => {
-                const winnings = bet.result === "won" ? (bet.amount * bet.multiplier).toFixed(2) : "0.00"
+              {displayBets.map((bet, idx) => {
+                const winnings = bet.result === "won" ? bet.amount * bet.multiplier : 0;
                 return (
                   <tr key={idx} className="hover:bg-cyan-500/5 transition-colors">
-                    <td className="py-4 px-4 text-gray-300 font-semibold">#{bets.length - idx}</td>
-                    <td className="py-4 px-4 text-blue-400 font-bold">${bet.amount.toFixed(2)}</td>
+                    <td className="py-4 px-4 text-gray-300 font-semibold">#{idx + 1}</td>
+                    <td className="py-4 px-4 text-blue-400 font-bold">{formatNaira(bet.amount)}</td>
                     <td className="py-4 px-4 font-bold text-cyan-400">{bet.multiplier.toFixed(2)}x</td>
                     <td
                       className={`py-4 px-4 font-bold ${bet.result === "won" ? "text-emerald-400" : "text-gray-500"}`}
                     >
-                      ${winnings}
+                      {formatNaira(winnings)}
                     </td>
                     <td className="py-4 px-4">
                       <span
