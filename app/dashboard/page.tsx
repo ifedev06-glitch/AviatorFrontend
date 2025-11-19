@@ -26,6 +26,9 @@ export default function DashboardPage() {
   const [isDepositOpen, setDepositOpen] = useState(false);
   const [depositAmount, setDepositAmount] = useState<string>(""); 
   const [depositLoading, setDepositLoading] = useState(false);
+  const [withdrawLoading, setWithdrawLoading] = useState(false);
+  const [gameLoading, setGameLoading] = useState(false);
+
   const depositInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -105,7 +108,7 @@ export default function DashboardPage() {
         <div className="flex justify-between items-center mt-4">
           <div className="text-center flex-1">
             <h1 className="text-5xl font-extrabold bg-gradient-to-r from-cyan-400 via-red-400 to-cyan-400 text-transparent bg-clip-text drop-shadow-[0_0_10px_rgba(0,255,255,0.4)]">
-              CashGame
+              CashGames
             </h1>
             <p className="text-cyan-300/70 text-sm mt-1">Welcome back, player</p>
           </div>
@@ -144,10 +147,18 @@ export default function DashboardPage() {
             </button>
 
             <button
-              onClick={() => router.push("/withdrawal")}
-              className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-red-500 to-red-400 text-white font-semibold py-3 rounded-xl shadow-md shadow-red-500/30 hover:opacity-90 transition"
+              onClick={async () => {
+                setWithdrawLoading(true);
+                try {
+                  router.push("/withdrawal");
+                } finally {
+                  setWithdrawLoading(false);
+                }
+              }}
+              disabled={withdrawLoading}
+              className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-red-500 to-red-400 text-white font-semibold py-3 rounded-xl shadow-md shadow-red-500/30 hover:opacity-90 transition disabled:opacity-50"
             >
-              <FaArrowUp /> Withdraw
+              <FaArrowUp /> {withdrawLoading ? "Loading..." : "Withdraw"}
             </button>
           </div>
         </div>
@@ -222,16 +233,25 @@ export default function DashboardPage() {
           </Dialog>
         </Transition>
 
-        {/* Go to Game Card */}
-        <div className="bg-black/40 border border-cyan-500/30 backdrop-blur-xl rounded-2xl p-6 shadow-xl shadow-cyan-500/20">
-          <button
-            onClick={() => router.push("/game")}
-            className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-cyan-400 to-red-500 text-white py-4 rounded-xl font-bold text-lg shadow-md shadow-cyan-500/30 hover:opacity-90 transition"
-          >
-            <FaGamepad className="text-xl" />
-            Click to Go to Game
-          </button>
-        </div>
+            {/* Go to Game Card */}
+      <div className="bg-black/40 border border-cyan-500/30 backdrop-blur-xl rounded-2xl p-6 shadow-xl shadow-cyan-500/20">
+        <button
+          onClick={async () => {
+            setGameLoading(true);
+            try {
+              router.push("/game");
+            } finally {
+              // optional: reset loading if needed after navigation
+            }
+          }}
+          disabled={gameLoading}
+          className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-cyan-400 to-red-500 text-white py-4 rounded-xl font-bold text-lg shadow-md shadow-cyan-500/30 hover:opacity-90 transition disabled:opacity-50"
+        >
+          <FaGamepad className="text-xl" />
+          {gameLoading ? "Loading..." : "Click to Go to Game"}
+        </button>
+      </div>
+
 
         {/* Withdrawal History Card */}
         <div className="bg-black/40 border border-cyan-500/30 backdrop-blur-xl rounded-2xl p-6 shadow-xl shadow-cyan-500/20 space-y-4">

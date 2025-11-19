@@ -10,6 +10,8 @@ interface BettingPanelProps {
   betAmount: number
   setBetAmount: (amount: number) => void
   timeToRestart?: number
+  placingBet?: boolean       // <-- added
+  cashingOut?: boolean       // <-- added
 }
 
 export default function BettingPanel({
@@ -22,11 +24,12 @@ export default function BettingPanel({
   betAmount,
   setBetAmount,
   timeToRestart = 0,
+  placingBet = false,       // default false
+  cashingOut = false,       // default false
 }: BettingPanelProps) {
   const quickBets = [100, 200, 500, 1000]
   const potentialWin = (betAmount * multiplier).toFixed(2)
 
-  // Determine if user can place a bet (before round starts)
   const canPlaceBet = (gameState === "idle" || gameState === "crashed") && !hasPlacedBet
 
   return (
@@ -94,9 +97,10 @@ export default function BettingPanel({
           hasPlacedBet ? (
             <button
               onClick={() => onCashOut(multiplier, betAmount)}
-              className="w-full py-3 bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600 text-slate-900 font-black rounded-xl text-sm shadow-lg shadow-yellow-500/50 transition-all transform hover:scale-105 active:scale-95"
+              disabled={cashingOut}
+              className="w-full py-3 bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600 text-slate-900 font-black rounded-xl text-sm shadow-lg shadow-yellow-500/50 transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50"
             >
-              💰 CASH OUT ₦{potentialWin}
+              {cashingOut ? "Cashing Out..." : `💰 CASH OUT ₦${potentialWin}`}
             </button>
           ) : (
             <button
@@ -109,9 +113,10 @@ export default function BettingPanel({
         ) : canPlaceBet ? (
           <button
             onClick={() => onStartGame(betAmount)}
-            className="w-full py-3 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-black rounded-xl text-sm shadow-lg shadow-emerald-500/50 transition-all transform hover:scale-105 active:scale-95"
+            disabled={placingBet}
+            className="w-full py-3 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-black rounded-xl text-sm shadow-lg shadow-emerald-500/50 transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50"
           >
-            {hasPlacedBet ? "✅ BET PLACED" : "🎯 PLACE BET"}
+            {placingBet ? "Placing Bet..." : hasPlacedBet ? "✅ BET PLACED" : "🎯 PLACE BET"}
           </button>
         ) : (
           <button

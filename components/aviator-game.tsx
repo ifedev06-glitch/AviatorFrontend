@@ -28,6 +28,9 @@ export default function AviatorGame() {
   const [waitingNextRound, setWaitingNextRound] = useState(false);
   const [nextRoundCountdown, setNextRoundCountdown] = useState(10);
 
+  const [placingBet, setPlacingBet] = useState(false); // <-- new loading state for betting
+  const [cashingOut, setCashingOut] = useState(false); // <-- new loading state for cashout
+
   const currentBetRef = useRef<number>(0);
   const stompClientRef = useRef<Client | null>(null);
 
@@ -133,10 +136,10 @@ export default function AviatorGame() {
     setHasPlacedBet(true);
     currentBetRef.current = amount;
     setBetAmount(amount);
+    setPlacingBet(true); // start loading
 
     try {
       const response = await placeBetApi({ amount }); // backend call
-      // Correct balance if backend returns a different value
       setBalance(response.remainingBalance);
     } catch (err: any) {
       console.error("Failed to place bet:", err);
@@ -145,13 +148,14 @@ export default function AviatorGame() {
       setBalance(prev => prev + amount);
       setHasPlacedBet(false);
       currentBetRef.current = 0;
+    } finally {
+      setPlacingBet(false); // stop loading
     }
   };
 
   const cashOut = async () => {
     if (!hasPlacedBet || gameState !== "playing") return;
 
-    // Optimistic UI update
     const cashoutMultiplier = multiplier;
     const cashoutAmount = currentBetRef.current * cashoutMultiplier;
 
@@ -162,10 +166,10 @@ export default function AviatorGame() {
     ]);
     setHasPlacedBet(false);
     currentBetRef.current = 0;
+    setCashingOut(true); // start loading
 
     try {
       const response = await cashoutApi(); // backend call
-      // Correct balance if backend returns a different value
       setBalance(response.newBalance);
     } catch (err: any) {
       console.error("Cashout failed:", err);
@@ -175,6 +179,8 @@ export default function AviatorGame() {
       setBets(prev => prev.slice(0, -1));
       setHasPlacedBet(true);
       currentBetRef.current = cashoutAmount / cashoutMultiplier;
+    } finally {
+      setCashingOut(false); // stop loading
     }
   };
 
@@ -234,6 +240,8 @@ export default function AviatorGame() {
             betAmount={betAmount}
             setBetAmount={setBetAmount}
             timeToRestart={timeToRestart}
+            placingBet={placingBet} // new prop
+            cashingOut={cashingOut} // new prop
           />
         </div>
 
