@@ -204,7 +204,7 @@ export default function AviatorGame() {
 
         <div className="mb-8 text-center">
           <h1 className="text-6xl md:text-7xl font-black mb-2 bg-gradient-to-r from-cyan-400 via-red-400 to-cyan-400 bg-clip-text text-transparent text-glow">
-            CashGame
+            CashGames
           </h1>
           <p className="text-cyan-400/80 text-lg font-semibold">Cash out before the plane crashes!</p>
           {isLoading && <p className="text-yellow-400 text-sm mt-2">⏳ Loading balance...</p>}
