@@ -28,11 +28,14 @@ export default function AviatorGame() {
   const [waitingNextRound, setWaitingNextRound] = useState(false);
   const [nextRoundCountdown, setNextRoundCountdown] = useState(10);
 
-  const [placingBet, setPlacingBet] = useState(false); // <-- new loading state for betting
-  const [cashingOut, setCashingOut] = useState(false); // <-- new loading state for cashout
+  const [placingBet, setPlacingBet] = useState(false);
+  const [cashingOut, setCashingOut] = useState(false);
 
   const currentBetRef = useRef<number>(0);
   const stompClientRef = useRef<Client | null>(null);
+
+  // ⭐ Initial screen loading state (your request)
+  const [showInitialLoading, setShowInitialLoading] = useState(true);
 
   // ------------------ Load User Profile ------------------
   const loadUserProfile = async () => {
@@ -62,11 +65,16 @@ export default function AviatorGame() {
     stompClient.connect({}, () => {
       console.log("✅ Connected to WebSocket");
 
-      // Listen for multiplier updates
+      // Listen for multiplier updates → FIRST UPDATE removes the loading screen
       stompClient.subscribe("/topic/multiplier", (message) => {
         const data = JSON.parse(message.body);
         setMultiplier(Number(data.multiplier));
         setGameState("playing");
+
+        // Remove initial loading screen once plane starts
+        if (showInitialLoading) {
+          setShowInitialLoading(false);
+        }
       });
 
       // Listen for crashes
@@ -88,7 +96,7 @@ export default function AviatorGame() {
     return () => {
       stompClient.disconnect(() => console.log("❌ WebSocket disconnected"));
     };
-  }, []);
+  }, [showInitialLoading]);
 
   // ------------------ Handle Crash ------------------
   const handleCrash = (finalMultiplier: number) => {
@@ -102,7 +110,6 @@ export default function AviatorGame() {
       currentBetRef.current = 0;
     }
 
-    // Start waiting for next round
     setWaitingNextRound(true);
     setNextRoundCountdown(10);
     let countdown = 10;
@@ -131,60 +138,58 @@ export default function AviatorGame() {
       return;
     }
 
-    // Optimistic UI update
     setBalance(prev => prev - amount);
     setHasPlacedBet(true);
     currentBetRef.current = amount;
     setBetAmount(amount);
-    setPlacingBet(true); // start loading
+    setPlacingBet(true);
 
     try {
-      const response = await placeBetApi({ amount }); // backend call
+      const response = await placeBetApi({ amount });
       setBalance(response.remainingBalance);
     } catch (err: any) {
       console.error("Failed to place bet:", err);
       alert(err.response?.data?.message || "❌ Failed to place bet. Try again.");
-      // Rollback
       setBalance(prev => prev + amount);
       setHasPlacedBet(false);
       currentBetRef.current = 0;
     } finally {
-      setPlacingBet(false); // stop loading
+      setPlacingBet(false);
     }
   };
 
-  const cashOut = async () => {
-    if (!hasPlacedBet || gameState !== "playing") return;
+ const cashOut = async () => {
+  if (!hasPlacedBet || gameState !== "playing") return;
 
+  setCashingOut(true);
+
+  try {
+    // FIRST call backend
+    const response = await cashoutApi();
+
+    // Backend succeeded → now update UI safely
     const cashoutMultiplier = multiplier;
     const cashoutAmount = currentBetRef.current * cashoutMultiplier;
 
-    setBalance(prev => prev + cashoutAmount);
+    setBalance(response.newBalance);
+
     setBets(prev => [
       ...prev,
       { amount: currentBetRef.current, multiplier: cashoutMultiplier, result: "won" },
     ]);
+
     setHasPlacedBet(false);
     currentBetRef.current = 0;
-    setCashingOut(true); // start loading
 
-    try {
-      const response = await cashoutApi(); // backend call
-      setBalance(response.newBalance);
-    } catch (err: any) {
-      console.error("Cashout failed:", err);
-      alert(err.response?.data?.message || "❌ Failed to cash out. Try again.");
-      // Rollback UI
-      setBalance(prev => prev - cashoutAmount);
-      setBets(prev => prev.slice(0, -1));
-      setHasPlacedBet(true);
-      currentBetRef.current = cashoutAmount / cashoutMultiplier;
-    } finally {
-      setCashingOut(false); // stop loading
-    }
-  };
+  } catch (err: any) {
+    console.error("Cashout failed:", err);
+    alert(err.response?.data?.message || "❌ Failed to cash out. Try again.");
+  } finally {
+    setCashingOut(false);
+  }
+};
 
-  // Reset hasPlacedBet when game crashes
+
   useEffect(() => {
     if (gameState === "crashed") setHasPlacedBet(false);
   }, [gameState]);
@@ -208,15 +213,30 @@ export default function AviatorGame() {
           </h1>
           <p className="text-cyan-400/80 text-lg font-semibold">Cash out before the plane crashes!</p>
           {isLoading && <p className="text-yellow-400 text-sm mt-2">⏳ Loading balance...</p>}
-          {backendError && <p className="text-red-400 text-sm mt-2 font-bold">❌ Backend server is offline. Please start the server and refresh the page.</p>}
+          {backendError && (
+            <p className="text-red-400 text-sm mt-2 font-bold">
+              ❌ Backend server is offline. Please start the server and refresh the page.
+            </p>
+          )}
         </div>
 
         <div className="space-y-4">
-          <div className="relative w-full rounded-2xl overflow-hidden border border-cyan-500/30 shadow-lg shadow-cyan-500/20" style={{ height: "220px" }}>
+          <div
+            className="relative w-full rounded-2xl overflow-hidden border border-cyan-500/30 shadow-lg shadow-cyan-500/20"
+            style={{ height: "220px" }}
+          >
             <GameDisplay gameState={gameState} multiplier={multiplier} timeToRestart={timeToRestart} />
 
-            {/* Waiting overlay only inside game box */}
-            {waitingNextRound && (
+            {/* ⭐ INITIAL PAGE LOADING OVERLAY */}
+            {showInitialLoading && (
+              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black bg-opacity-90 text-white">
+                <div className="animate-spin h-10 w-10 border-4 border-cyan-400 border-t-transparent rounded-full mb-3"></div>
+                <p className="text-cyan-300 text-lg font-semibold">Connecting to live game...</p>
+              </div>
+            )}
+
+            {/* Waiting next round */}
+            {waitingNextRound && !showInitialLoading && (
               <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black bg-opacity-80 text-white p-4">
                 <p className="text-lg font-bold mb-2">Waiting for next round...</p>
                 <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
@@ -240,8 +260,8 @@ export default function AviatorGame() {
             betAmount={betAmount}
             setBetAmount={setBetAmount}
             timeToRestart={timeToRestart}
-            placingBet={placingBet} // new prop
-            cashingOut={cashingOut} // new prop
+            placingBet={placingBet}
+            cashingOut={cashingOut}
           />
         </div>
 
