@@ -52,7 +52,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="text-center">
           <h1 className="text-5xl font-extrabold bg-gradient-to-r from-cyan-400 via-red-400 to-cyan-400 text-transparent bg-clip-text drop-shadow-[0_0_10px_rgba(0,255,255,0.4)]">
-            CashGame
+            CashGames
           </h1>
           <p className="text-cyan-300/70 text-sm mt-2">
             Login to your account
